@@ -424,7 +424,235 @@ activity_summary |>
 ```
 Activity is lowest overnight, rises sharply in the morning, remains relatively high through much of the day, and then declines later in the evening. The overall daily pattern is similar across education groups. Women generally show somewhat higher daytime activity than men in the high school equivalent and more than high school groups, while the difference between men and women is smaller among participants with less than a high school education.
 
-
-
 # Problem 3
+
+```{r load_citibike}
+# Import Citi Bike data
+citi_jan_2020 =
+  read_csv(
+    "./data/Jan 2020 Citi.csv",
+    show_col_types = FALSE
+  ) |>
+  janitor::clean_names() |>
+  mutate(
+    year = 2020,
+    month = "January"
+  )
+
+citi_july_2020 =
+  read_csv(
+    "./data/July 2020 Citi.csv",
+    show_col_types = FALSE
+  ) |>
+  janitor::clean_names() |>
+  mutate(
+    year = 2020,
+    month = "July"
+  )
+
+citi_jan_2024 =
+  read_csv(
+    "./data/Jan 2024 Citi.csv",
+    show_col_types = FALSE
+  ) |>
+  janitor::clean_names() |>
+  mutate(
+    year = 2024,
+    month = "January"
+  )
+
+citi_july_2024 =
+  read_csv(
+    "./data/July 2024 Citi.csv",
+    show_col_types = FALSE
+  ) |>
+  janitor::clean_names() |>
+  mutate(
+    year = 2024,
+    month = "July"
+  )
+
+```
+
+```{r combine_citibike}
+# Combine Citi Bike datasets
+citi_df =
+  bind_rows(
+    citi_jan_2020,
+    citi_july_2020,
+    citi_jan_2024,
+    citi_july_2024
+  ) |>
+  mutate(
+    month = factor(
+      month,
+      levels = c("January", "July")
+    )
+  )
+
+dim(citi_df)
+
+glimpse(citi_df)
+
+```
+```{r clean_citibike}
+# Clean Citi Bike variables
+citi_df =
+  citi_df |>
+  mutate(
+    year = factor(
+      year,
+      levels = c(2020, 2024)
+    ),
+    month = factor(
+      month,
+      levels = c("January", "July")
+    ),
+    member_casual = factor(
+      member_casual,
+      levels = c("casual", "member"),
+      labels = c("Casual", "Member")
+    ),
+    rideable_type = factor(rideable_type),
+    weekdays = factor(
+      weekdays,
+      levels = c(
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      )
+    )
+  )
+
+glimpse(citi_df)
+
+```
+The combined Citi Bike dataset contains 99,485 rides and 9 variables. Each row represents one ride and includes the bike type, day of the week, ride duration, starting and ending station, membership status, year, and month. The data include rides from January and July in both 2020 and 2024, allowing comparisons over time, season, membership status, and bike type.
+
+```{r ride_count_table}
+# Count rides by year, month, and membership status
+ride_count_table =
+  citi_df |>
+  count(
+    year,
+    month,
+    member_casual,
+    name = "rides"
+  ) |>
+  pivot_wider(
+    names_from = member_casual,
+    values_from = rides,
+    values_fill = 0
+  )
+
+knitr::kable(
+  ride_count_table,
+  caption = "Number of Citi Bike Rides by Year, Month, and Membership Status"
+)
+
+```
+Ride counts are higher in July than in January in both years, and members account for more rides than casual riders in every year-month combination. Ridership also increased substantially from 2020 to 2024. The largest number of rides occurred in July 2024, with 36,262 member rides and 10,894 casual rides.
+```{r popular_stations}
+# Find the most popular starting stations in July 2024
+popular_stations =
+  citi_df |>
+  filter(
+    year == "2024",
+    month == "July"
+  ) |>
+  count(
+    start_station_name,
+    sort = TRUE,
+    name = "rides"
+  ) |>
+  slice_head(n = 5)
+
+knitr::kable(
+  popular_stations,
+  caption = "Five Most Popular Starting Stations in July 2024"
+)
+
+```
+The five most popular starting stations in July 2024 were Pier 61 at Chelsea Piers, University Pl & E 14 St, W 21 St & 6 Ave, West St & Chambers St, and W 31 St & 7 Ave. Pier 61 at Chelsea Piers had the most rides, with 163 rides originating there.
+
+```{r median_duration_plot}
+# Calculate median ride duration by weekday, month, and year
+median_duration =
+  citi_df |>
+  group_by(
+    year,
+    month,
+    weekdays
+  ) |>
+  summarize(
+    median_duration = median(
+      duration,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+
+# Plot median ride duration
+median_duration |>
+  ggplot(
+    aes(
+      x = weekdays,
+      y = median_duration,
+      color = month,
+      group = month
+    )
+  ) +
+  geom_point(size = 2) +
+  geom_line() +
+  facet_wrap(~year) +
+  labs(
+    title = "Median Citi Bike Ride Duration by Day of Week",
+    x = "Day of week",
+    y = "Median ride duration (minutes)",
+    color = "Month"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    )
+  )
+
+```
+Median ride duration is consistently longer in July than in January in both years. Ride durations were also generally longer in 2020 than in 2024. The difference between January and July is especially pronounced in 2020, and July 2020 shows a noticeable increase in median duration on the weekend. In 2024, ride durations vary less across the days of the week.
+
+
+```{r ride_distribution_2024}
+# Compare 2024 ride duration distributions
+citi_df |>
+  filter(year == "2024") |>
+  ggplot(
+    aes(
+      x = duration,
+      fill = rideable_type
+    )
+  ) +
+  geom_density(alpha = 0.4) +
+  facet_grid(
+    member_casual ~ month
+  ) +
+  coord_cartesian(
+    xlim = c(0, 60)
+  ) +
+  labs(
+    title = "Ride Duration Distributions in 2024",
+    subtitle = "By month, membership status, and bike type",
+    x = "Ride duration (minutes)",
+    y = "Density",
+    fill = "Bike type"
+  ) +
+  theme_minimal()
+
+```
+In 2024, casual riders generally have broader ride-duration distributions and longer right tails than members, indicating more longer-duration rides. Member rides are more concentrated at shorter durations in both January and July. Differences between classic and electric bikes are smaller than the differences by membership status, although electric-bike rides tend to be somewhat more concentrated at shorter durations, particularly among casual riders.
 
