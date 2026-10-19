@@ -1,0 +1,191 @@
+---
+title: "P8105 Homework 3"
+author: "Rezwana Habib"
+date: "2026-10-19"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(p8105.datasets)
+library(patchwork)
+```
+
+### Problem 1
+```{r load_noaa}
+# Load the New York NOAA weather dataset
+data("ny_noaa")
+
+ny_noaa
+```
+```{r inspect_noaa}
+# Check dataset size, structure, and missing values
+dim(ny_noaa)
+
+glimpse(ny_noaa)
+
+ny_noaa |>
+  summarize(
+    missing_prcp = sum(is.na(prcp)),
+    missing_snow = sum(is.na(snow)),
+    missing_snwd = sum(is.na(snwd)),
+    missing_tmax = sum(is.na(tmax)),
+    missing_tmin = sum(is.na(tmin))
+  )
+```
+```{r clean_noaa}
+# Clean dates and weather measurements
+noaa_clean =
+  ny_noaa |>
+  mutate(
+    year = as.integer(format(date, "%Y")),
+    month = as.integer(format(date, "%m")),
+    day = as.integer(format(date, "%d")),
+    prcp = prcp / 10,
+    tmax = as.numeric(tmax) / 10,
+    tmin = as.numeric(tmin) / 10
+  )
+
+noaa_clean
+
+```
+```{r check_noaa_clean}
+# Check cleaned variables
+noaa_clean |>
+  select(date, year, month, day, prcp, snow, snwd, tmax, tmin) |>
+  head()
+```
+```{r snowfall_frequency}
+# Find the most common snowfall values
+snowfall_frequency =
+  noaa_clean |>
+  filter(!is.na(snow)) |>
+  count(snow, sort = TRUE)
+
+snowfall_frequency |>
+  slice_head(n = 10)
+```
+```{r missing_noaa}
+# Calculate percent missing for key weather variables
+noaa_clean |>
+  summarize(
+    prcp_missing = mean(is.na(prcp)) * 100,
+    snow_missing = mean(is.na(snow)) * 100,
+    snwd_missing = mean(is.na(snwd)) * 100,
+    tmax_missing = mean(is.na(tmax)) * 100,
+    tmin_missing = mean(is.na(tmin)) * 100
+  )
+```
+The original `ny_noaa` dataset contains 2,595,176 observations and 7 variables. Each row represents a daily weather observation for a station identified by `id` and `date`. Key weather variables include precipitation (`prcp`), snowfall (`snow`), snow depth (`snwd`), maximum temperature (`tmax`), and minimum temperature (`tmin`). Missing data are fairly common for some variables: about 5.6% of precipitation values, 14.7% of snowfall values, 22.8% of snow depth values, and 43.7% of maximum temperature values are missing.
+
+The most common snowfall value is 0 mm, with 2,008,508 observations. Other common values include 25, 13, 51, and 76 mm. Zero is by far the most common because most station-days do not have snowfall. The other repeated values likely reflect common snowfall amounts originally recorded in inches and converted to millimeters.
+
+```{r jan_july_summary}
+# Calculate average max temperature by station and year
+jan_july_df =
+  noaa_clean |>
+  filter(month %in% c(1, 7)) |>
+  mutate(
+    month = factor(
+      month,
+      levels = c(1, 7),
+      labels = c("January", "July")
+    )
+  ) |>
+  group_by(id, year, month) |>
+  summarize(
+    mean_tmax = mean(tmax, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  filter(is.finite(mean_tmax))
+
+jan_july_df
+
+```
+```{r jan_july_plot}
+# Plot average max temperature in January and July
+jan_july_df |>
+  ggplot(
+    aes(
+      x = year,
+      y = mean_tmax,
+      group = id
+    )
+  ) +
+  geom_line(alpha = 0.25) +
+  facet_wrap(~month, nrow = 1) +
+  labs(
+    title = "Average Maximum Temperature by Station",
+    subtitle = "January and July across years",
+    x = "Year",
+    y = "Average maximum temperature (°C)"
+  ) +
+  theme_minimal()
+
+```
+```{r tmax_tmin_plot}
+# Show the relationship between maximum and minimum temperature
+temp_plot =
+  noaa_clean |>
+  filter(
+    !is.na(tmax),
+    !is.na(tmin)
+  ) |>
+  ggplot(aes(x = tmin, y = tmax)) +
+  geom_bin_2d(bins = 50) +
+  scale_fill_viridis_c() +
+  labs(
+    title = "Maximum vs. Minimum Temperature",
+    x = "Minimum temperature (°C)",
+    y = "Maximum temperature (°C)",
+    fill = "Count"
+  ) +
+  theme_minimal()
+
+temp_plot
+
+```
+Average maximum temperatures are much lower in January than in July across stations. Both months show noticeable year-to-year variation, but there is no strong long-term pattern that is obvious across the full period. Most station averages cluster fairly closely together, although there are a few unusually low station-year averages in both January and July that stand out from the rest.
+
+```{r snowfall_plot}
+# Show snowfall distributions by year
+snow_plot =
+  noaa_clean |>
+  filter(
+    snow > 0,
+    snow < 100
+  ) |>
+  ggplot(aes(x = factor(year), y = snow)) +
+  geom_boxplot(outlier.alpha = 0.2) +
+  scale_x_discrete(
+    breaks = as.character(seq(1981, 2010, by = 5))
+  ) +
+  labs(
+    title = "Snowfall Distribution by Year",
+    x = "Year",
+    y = "Snowfall (mm)"
+  ) +
+  theme_minimal()
+
+snow_plot
+```
+```{r combined_weather_plot, fig.width=12, fig.height=5}
+# Combine temperature and snowfall plots
+temp_plot + snow_plot +
+  plot_layout(ncol = 2) +
+  plot_annotation(
+    title = "Temperature and Snowfall Patterns in New York"
+  )
+
+```
+Maximum and minimum temperatures have a strong positive relationship, with most observations concentrated along a clear upward pattern. There are also a small number of unusually extreme temperature observations outside the main concentration. Snowfall distributions are fairly similar across years, with most nonzero snowfall measurements concentrated at lower values. Some years have more high snowfall observations near the upper end of the restricted range, but there is not a clear long-term shift in the overall distribution.
+
+
+
+
+
+
+# Problem 2
+
+# Problem 3
+
